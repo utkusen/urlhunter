@@ -51,6 +51,7 @@ For example: `urlhunter -keywords keywords.txt -date 2020-11-20 -o out.txt`
 
 For example: `docker run -it urlhunter -keywords acme.com -date 2020-11-20 -o output.txt`
 
+For example: `docker run -it xshuden/urlhunter -keywords acme.com -date 2020-11-20 -o output.txt`
 
 ### -keywords
 
