@@ -18,6 +18,7 @@ RUN go build -o ./out/urlhunter .
 # Start fresh from a smaller image
 FROM alpine:3.9 
 RUN apk add ca-certificates
+RUN apk add xz
 
 COPY --from=build_base /tmp/app-base/out/urlhunter /app/urlhunter
 
