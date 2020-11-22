@@ -62,9 +62,11 @@ urlhunter downloads the archive files of the given date(s). You have three diffe
 **Latest:** urlhunter will download the latest archive. `-date latest`
 
 **Single Date:** urlhunter will download the archive of the given date. Date format is YYYY-MM-DD. 
+
 For example: `-date 2020-11-20`
 
 **Date Range:** urlhunter will download all the archives between given start and end dates. 
+
 For example: `-date 2020-11-10:2020-11-20`
 
 ### -o
