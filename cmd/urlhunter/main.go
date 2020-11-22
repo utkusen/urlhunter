@@ -39,15 +39,6 @@ func main() {
 		config.PrintHelpAndDie()
 	}
 
-	// keywordFile := flag.String("keywords", "", "A txt file that contains strings to search.")
-	// dateParam := flag.String("date", "", "A single date or a range to search. Single: YYYY-MM-DD Range:YYYY-MM-DD:YYYY-MM-DD")
-	// outFile := flag.String("o", "", "Output file")
-	// flag.Parse()
-	// if opts.Keywords == "" || opts.Date == "" || opts.Output == "" {
-	// 	color.Red("Please specify all arguments!")
-	// 	flag.PrintDefaults()
-	// 	return
-	// }
 	fmt.Println(`
 	o  	  Utku Sen's
 	 \_/\o   
