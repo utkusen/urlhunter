@@ -19,7 +19,7 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/schollz/progressbar/v3"
-	"github.com/utkusen/urlhunter/internal/config"
+	"github.com/utkusen/urlhunter/config"
 )
 
 var baseurl string = "https://archive.org/services/search/v1/scrape?debug=false&xvar=production&total_only=false&count=10000&fields=identifier%2Citem_size&q=Urlteam%20Release"
