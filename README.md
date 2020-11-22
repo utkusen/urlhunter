@@ -19,7 +19,7 @@ A group named [URLTeam](https://archiveteam.org/index.php?title=URLTeam) (kudos 
 
 ## From Binary
 
-You can download the pre-built binaries from the [releases](https://github.com/ffuf/ffuf/releases/latest) page and run. For example:
+You can download the pre-built binaries from the [releases](https://github.com/utkusen/urlhunter/releases/latest) page and run. For example:
 
 `tar xzvf urlhunter_0.1.0_Linux_amd64.tar.gz`
 
