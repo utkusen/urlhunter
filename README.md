@@ -33,11 +33,24 @@ You can download the pre-built binaries from the [releases](https://github.com/u
 
 **Note For The Windows Users:** urlhunter uses `XZ Utils` which is pre-installed on Linux and macOS systems. For Windows systems, you need to download it from [https://tukaani.org/xz/](https://tukaani.org/xz/)
 
+## Docker
+
+1) Install Docker on your system
+
+2) Install Urlhunter repository on your system
+
+3) Run: `docker build -t urlhunter .` OR `docker pull xshuden/urlhunter` 
+ 
 # Usage
 
 urlhunter requires 3 parameters to run: `-keywords`, `-date` and `-o`. 
 
 For example: `urlhunter -keywords keywords.txt -date 2020-11-20 -o out.txt`
+
+## With Docker
+
+For example: `docker run -it urlhunter -keywords acme.com -date 2020-11-20 -o output.txt`
+
 
 ### -keywords
 
