@@ -13,7 +13,7 @@ urlhunter is a recon tool that allows searching on URLs that are exposed via sho
 
 ### How?
 
-A group named [URLTeam](https://archiveteam.org/index.php?title=URLTeam) (kudos to them) brute forcing the URL shortener services and publishing matched results on a daily basis. urlhunter downloads their [collections](https://archive.org/details/UrlteamWebCrawls) and lets you analyze them. 
+A group named [URLTeam](https://archiveteam.org/index.php?title=URLTeam) (kudos to them) are brute forcing the URL shortener services and publishing matched results on a daily basis. urlhunter downloads their [collections](https://archive.org/details/UrlteamWebCrawls) and lets you analyze them. 
 
 # Installation
 
