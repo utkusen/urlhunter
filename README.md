@@ -23,8 +23,6 @@ You can download the pre-built binaries from the [releases](https://github.com/f
 
 `tar xzvf urlhunter_0.1.0_Linux_amd64.tar.gz`
 
-`cd urlhunter_0.1.0_Linux_amd64`
-
 `./urlhunter --help`
 
 ## From Source
