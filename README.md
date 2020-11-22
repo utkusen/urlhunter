@@ -71,6 +71,10 @@ urlhunter downloads the archive files of the given date(s). You have three diffe
 
 You can specify the output file with `-o` parameter. For example `-o out.txt`
 
+### Demonstration Video
+
+[![Watch the video](https://i.imgur.com/J2CrvfM.png)](https://www.youtube.com/watch?v=Ct086YRm7i8)
+
 ## The Speed Problem
 
 Archive.org throttles the speed when downloading files. Therefore, downloading an archive takes more time than usual. As a workaround, you can download the archives via Torrent and put them under the `archive/` folder which is located in the same directory with the urlhunter's binary. The directory tree will look like:
