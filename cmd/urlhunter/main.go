@@ -19,20 +19,35 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/schollz/progressbar/v3"
+	"github.com/utkusen/urlhunter/internal/config"
 )
 
 var baseurl string = "https://archive.org/services/search/v1/scrape?debug=false&xvar=production&total_only=false&count=10000&fields=identifier%2Citem_size&q=Urlteam%20Release"
 
 func main() {
-	keywordFile := flag.String("keywords", "", "A txt file that contains strings to search.")
-	dateParam := flag.String("date", "", "A single date or a range to search. Single: YYYY-MM-DD Range:YYYY-MM-DD:YYYY-MM-DD")
-	outFile := flag.String("o", "", "Output file")
-	flag.Parse()
-	if *keywordFile == "" || *dateParam == "" || *outFile == "" {
-		color.Red("Please specify all arguments!")
-		flag.PrintDefaults()
-		return
+	// Create a FlagSet and sets the usage
+	fs := flag.NewFlagSet(filepath.Base(os.Args[0]), flag.ExitOnError)
+
+	// Configure the options from the flags/config file
+	opts, err := config.ConfigureOptions(fs, os.Args[1:])
+	if err != nil {
+		config.PrintUsageErrorAndDie(err)
 	}
+
+	// If -help flag is defined, print help
+	if opts.ShowHelp {
+		config.PrintHelpAndDie()
+	}
+
+	// keywordFile := flag.String("keywords", "", "A txt file that contains strings to search.")
+	// dateParam := flag.String("date", "", "A single date or a range to search. Single: YYYY-MM-DD Range:YYYY-MM-DD:YYYY-MM-DD")
+	// outFile := flag.String("o", "", "Output file")
+	// flag.Parse()
+	// if opts.Keywords == "" || opts.Date == "" || opts.Output == "" {
+	// 	color.Red("Please specify all arguments!")
+	// 	flag.PrintDefaults()
+	// 	return
+	// }
 	fmt.Println(`
 	o  	  Utku Sen's
 	 \_/\o   
@@ -45,13 +60,13 @@ func main() {
  
  `)
 	_ = os.Mkdir("archives", os.ModePerm)
-	if strings.Contains(*dateParam, ":") {
-		startDate, err := time.Parse("2006-01-02", strings.Split(*dateParam, ":")[0])
+	if strings.Contains(opts.Date, ":") {
+		startDate, err := time.Parse("2006-01-02", strings.Split(opts.Date, ":")[0])
 		if err != nil {
 			color.Red("Wrong date format!")
 			return
 		}
-		endDate, err := time.Parse("2006-01-02", strings.Split(*dateParam, ":")[1])
+		endDate, err := time.Parse("2006-01-02", strings.Split(opts.Date, ":")[1])
 		if err != nil {
 			color.Red("Wrong date format!")
 			return
@@ -61,18 +76,18 @@ func main() {
 			if date.IsZero() {
 				break
 			}
-			getArchive(getArchiveList(), string(date.Format("2006-01-02")), *keywordFile, *outFile)
+			getArchive(getArchiveList(), string(date.Format("2006-01-02")), opts.Keywords, opts.Output)
 		}
 	} else {
-		if *dateParam != "latest" {
-			_, err := time.Parse("2006-01-02", *dateParam)
+		if opts.Date != "latest" {
+			_, err := time.Parse("2006-01-02", opts.Date)
 			if err != nil {
 				color.Red("Wrong date format!")
 				return
 			}
 		}
 
-		getArchive(getArchiveList(), *dateParam, *keywordFile, *outFile)
+		getArchive(getArchiveList(), opts.Date, opts.Keywords, opts.Output)
 	}
 	color.Green("Search complete!")
 }
