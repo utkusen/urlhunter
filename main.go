@@ -145,8 +145,10 @@ func getArchive(body []byte, date string, keywordFile string, outfile string) {
 		color.Cyan(fullname + " Archive already exists!")
 	} else {
 		for _, item := range dump_files.File {
-			dump_filepath := filepath.Join("archives", fullname, item.DumpType, "______.txt")
-			_ = os.Remove(dump_filepath)
+			dump_filepath, _ := filepath.Glob(filepath.Join("archives", fullname, item.DumpType, "*.txt"))
+			if len(dump_filepath) > 0{
+					_ = os.Remove(dump_filepath[0])
+			}
 
 			if fileExists(filepath.Join("archives", fullname, item.Name)) == false {
 				color.Red(item.Name + " doesn't exist locally.")
@@ -165,9 +167,10 @@ func getArchive(body []byte, date string, keywordFile string, outfile string) {
 
 		color.Cyan("Decompressing XZ Archives..")
 		for _, item := range dump_files.File {
-			tarfile := filepath.Join("archives", fullname, item.DumpType, "______.txt.xz")
-			_, err := exec.Command("xz", "--decompress", tarfile).Output()
+			tarfile, _ := filepath.Glob(filepath.Join("archives", fullname, item.DumpType, "*.txt.xz"))
+			_, err := exec.Command("xz", "--decompress", tarfile[0]).Output()
 			if err != nil {
+				fmt.Println(err)
 				panic(err)
 			}
 		}
@@ -187,8 +190,8 @@ func getArchive(body []byte, date string, keywordFile string, outfile string) {
 			continue
 		}
 		for _, item := range dump_files.File {
-			dump_path := filepath.Join("archives", fullname, item.DumpType, "______.txt")
-			searchFile(dump_path, keywordSlice[i], outfile)
+			dump_path, _ := filepath.Glob(filepath.Join("archives", fullname, item.DumpType, "*.txt"))
+			searchFile(dump_path[0], keywordSlice[i], outfile)
 		}
 	}
 
