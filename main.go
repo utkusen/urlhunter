@@ -5,6 +5,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"encoding/xml"
 	"flag"
 	"fmt"
 	"io"
@@ -23,6 +24,24 @@ import (
 
 var baseurl string = "https://archive.org/services/search/v1/scrape?debug=false&xvar=production&total_only=false&count=10000&fields=identifier%2Citem_size&q=Urlteam%20Release"
 
+type Files struct {
+	XMLName xml.Name `xml:"files"`
+	Text    string   `xml:",chardata"`
+	File    []struct {
+		Text   string 	`xml:",chardata"`
+		Name   string 	`xml:"name,attr"`
+		Source string 	`xml:"source,attr"`
+		Mtime  string 	`xml:"mtime"`
+		Size   string 	`xml:"size"`
+		Md5    string 	`xml:"md5"`
+		Crc32  string 	`xml:"crc32"`
+		Sha1   string 	`xml:"sha1"`
+		Format string 	`xml:"format"`
+		Btih   string		`xml:"btih"`
+		DumpType string `xml:name,attr`
+	} `xml:"file"`
+}
+
 func main() {
 	keywordFile := flag.String("keywords", "", "A txt file that contains strings to search.")
 	dateParam := flag.String("date", "", "A single date or a range to search. Single: YYYY-MM-DD Range:YYYY-MM-DD:YYYY-MM-DD")
@@ -35,14 +54,14 @@ func main() {
 	}
 	fmt.Println(`
 	o  	  Utku Sen's
-	 \_/\o   
+	 \_/\o
 	( Oo)                    \|/
 	(_=-)  .===O-  ~~U~R~L~~ -O-
 	/   \_/U'        hunter  /|\
 	||  |_/
 	\\  |    utkusen.com
 	{K ||	twitter.com/utkusen
- 
+
  `)
 	_ = os.Mkdir("archives", os.ModePerm)
 	if strings.Contains(*dateParam, ":") {
@@ -121,49 +140,42 @@ func getArchive(body []byte, date string, keywordFile string, outfile string) {
 		color.Red("Couldn't find an archive with that date!")
 		return
 	}
+	dump_files := archiveMetadata(fullname)
 	if ifArchiveExists(fullname) {
 		color.Cyan(fullname + " Archive already exists!")
 	} else {
-		_ = os.Remove("archives/" + fullname + "/goo-gl/______.txt")
-		_ = os.Remove("archives/" + fullname + "/bitly_6/______.txt")
-		googfile := "goo-gl." + strings.Split(fullname, "_")[1] + ".zip"
-		bitfile := "bitly_6." + strings.Split(fullname, "_")[1] + ".zip"
-		if fileExists("archives/"+fullname+"/"+googfile) == false {
-			color.Red(googfile + " doesn't exists locally.")
-			url1 := "https://archive.org/download/" + fullname + "/" + googfile
-			downloadFile(url1)
+		for _, item := range dump_files.File {
+			dump_filepath := filepath.Join("archives", fullname, item.DumpType, "______.txt")
+			_ = os.Remove(dump_filepath)
+
+			if fileExists("archives/" + fullname + "/" + item.Name) == false {
+				color.Red(item.Name + " doesn't exist locally.")
+				url1 := "https://archive.org/download/" + fullname + "/" + item.Name
+				downloadFile(url1)
+			}
+
+			color.Magenta("Unzipping: " + item.Name)
+			_, err := Unzip("archives/"+fullname+"/"+item.Name, "archives/"+fullname)
+			if err != nil {
+				color.Red(item.Name + " looks damaged. It's removed now. Run the program again to re-download.")
+				os.Remove("archives/" + fullname + "/" + item.Name)
+				os.Exit(1)
+			}
 		}
-		if fileExists("archives/"+fullname+"/"+bitfile) == false {
-			color.Red(bitfile + " doesn't exists locally.")
-			url2 := "https://archive.org/download/" + fullname + "/" + bitfile
-			downloadFile(url2)
-		}
-		color.Magenta("Unzipping: " + googfile)
-		_, err := Unzip("archives/"+fullname+"/"+googfile, "archives/"+fullname)
-		if err != nil {
-			color.Red(googfile + " looks damaged. It's removed now. Run the program again to re-download.")
-			os.Remove("archives/" + fullname + "/" + googfile)
-			os.Exit(1)
-		}
-		color.Magenta("Unzipping: " + bitfile)
-		_, err = Unzip("archives/"+fullname+"/"+bitfile, "archives/"+fullname)
-		if err != nil {
-			color.Red(bitfile + " looks damaged. It's removed. Run the program again.")
-			os.Remove("archives/" + fullname + "/" + bitfile)
-			os.Exit(1)
-		}
+
 		color.Cyan("Decompressing XZ Archives..")
-		_, err = exec.Command("xz", "--decompress", "archives/"+fullname+"/goo-gl/______.txt.xz").Output()
-		if err != nil {
-			panic(err)
+		for _, item := range dump_files.File {
+			tarfile := filepath.Join("archives", fullname, item.DumpType, "______.txt.xz")
+			_, err := exec.Command("xz", "--decompress", tarfile).Output()
+			if err != nil {
+				panic(err)
+			}
 		}
-		_, err = exec.Command("xz", "--decompress", "archives/"+fullname+"/bitly_6/______.txt.xz").Output()
-		if err != nil {
-			panic(err)
-		}
+
 		color.Cyan("Removing Zip Files..")
-		_ = os.Remove("archives/" + fullname + "/" + googfile)
-		_ = os.Remove("archives/" + fullname + "/" + bitfile)
+		for _, item := range dump_files.File {
+			_ = os.Remove("archives/" + fullname + "/" + item.Name)
+		}
 	}
 	fileBytes, err := ioutil.ReadFile(keywordFile)
 	if err != nil {
@@ -174,8 +186,10 @@ func getArchive(body []byte, date string, keywordFile string, outfile string) {
 		if keywordSlice[i] == "" {
 			continue
 		}
-		searchFile("archives/"+fullname+"/goo-gl/______.txt", keywordSlice[i], outfile)
-		searchFile("archives/"+fullname+"/bitly_6/______.txt", keywordSlice[i], outfile)
+		for _, item := range dump_files.File {
+			dump_path := filepath.Join("archives", fullname, item.DumpType, "______.txt")
+			searchFile(dump_path, keywordSlice[i], outfile)
+		}
 	}
 
 }
@@ -254,6 +268,27 @@ func ifArchiveExists(fullname string) bool {
 	} else {
 		return true
 	}
+}
+
+func archiveMetadata(fullname string) Files {
+	metadata_filename := "urlteam_" + strings.Split(fullname, "_")[1] + "_files.xml"
+	if fileExists("archives/"+ fullname + "/" + metadata_filename) == false {
+		color.Red(metadata_filename + " doesn't exists locally.")
+		metadata_url := "https://archive.org/download/" + fullname + "/" + metadata_filename
+		downloadFile(metadata_url)
+	}
+	byteValue, _ := ioutil.ReadFile("archives/"+ fullname + "/" + metadata_filename)
+	files := Files{}
+	xml.Unmarshal(byteValue, &files)
+	// Not all files are dumps, this struct will only contain zip dumps
+	dump_files := Files{}
+	for _, item := range files.File {
+		if item.Format == "ZIP" {
+				item.DumpType = strings.Split(item.Name, ".")[0]
+				dump_files.File = append(dump_files.File, item)
+		}
+	}
+	return dump_files
 }
 
 func fileExists(filename string) bool {
