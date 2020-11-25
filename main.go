@@ -148,17 +148,17 @@ func getArchive(body []byte, date string, keywordFile string, outfile string) {
 			dump_filepath := filepath.Join("archives", fullname, item.DumpType, "______.txt")
 			_ = os.Remove(dump_filepath)
 
-			if fileExists("archives/" + fullname + "/" + item.Name) == false {
+			if fileExists(filepath.Join("archives", fullname, item.Name)) == false {
 				color.Red(item.Name + " doesn't exist locally.")
 				url1 := "https://archive.org/download/" + fullname + "/" + item.Name
 				downloadFile(url1)
 			}
 
 			color.Magenta("Unzipping: " + item.Name)
-			_, err := Unzip("archives/"+fullname+"/"+item.Name, "archives/"+fullname)
+			_, err := Unzip(filepath.Join("archives", fullname, item.Name), filepath.Join("archives", fullname))
 			if err != nil {
 				color.Red(item.Name + " looks damaged. It's removed now. Run the program again to re-download.")
-				os.Remove("archives/" + fullname + "/" + item.Name)
+				os.Remove(filepath.Join("archives", fullname, item.Name))
 				os.Exit(1)
 			}
 		}
@@ -174,7 +174,7 @@ func getArchive(body []byte, date string, keywordFile string, outfile string) {
 
 		color.Cyan("Removing Zip Files..")
 		for _, item := range dump_files.File {
-			_ = os.Remove("archives/" + fullname + "/" + item.Name)
+			_ = os.Remove(filepath.Join("archives", fullname, item.Name))
 		}
 	}
 	fileBytes, err := ioutil.ReadFile(keywordFile)
