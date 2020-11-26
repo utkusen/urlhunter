@@ -262,15 +262,14 @@ func searchFile(fileLocation string, keyword string, outfile string) {
 }
 
 func ifArchiveExists(fullname string) bool {
-	googtxt := "archives/" + fullname + "/goo-gl/______.txt"
-	bittxt := "archives/" + fullname + "/bitly_6/______.txt"
-	googflag := fileExists(googtxt)
-	bitflag := fileExists(bittxt)
-	if googflag == false || bitflag == false {
-		return false
-	} else {
-		return true
+	dumpFiles := archiveMetadata(fullname)
+	for _, item := range dumpFiles.File {
+			archiveFilepaths, err := filepath.Glob(filepath.Join("archives", fullname, item.DumpType, "*.txt"))
+			if len(archiveFilepaths) == 0 || err != nil {
+				return false
+			}
 	}
+	return true
 }
 
 func archiveMetadata(fullname string) Files {
