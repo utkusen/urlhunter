@@ -28,16 +28,16 @@ type Files struct {
 	XMLName xml.Name `xml:"files"`
 	Text    string   `xml:",chardata"`
 	File    []struct {
-		Text   string 	`xml:",chardata"`
-		Name   string 	`xml:"name,attr"`
-		Source string 	`xml:"source,attr"`
-		Mtime  string 	`xml:"mtime"`
-		Size   string 	`xml:"size"`
-		Md5    string 	`xml:"md5"`
-		Crc32  string 	`xml:"crc32"`
-		Sha1   string 	`xml:"sha1"`
-		Format string 	`xml:"format"`
-		Btih   string		`xml:"btih"`
+		Text     string `xml:",chardata"`
+		Name     string `xml:"name,attr"`
+		Source   string `xml:"source,attr"`
+		Mtime    string `xml:"mtime"`
+		Size     string `xml:"size"`
+		Md5      string `xml:"md5"`
+		Crc32    string `xml:"crc32"`
+		Sha1     string `xml:"sha1"`
+		Format   string `xml:"format"`
+		Btih     string `xml:"btih"`
 		DumpType string `xml:name,attr`
 	} `xml:"file"`
 }
@@ -140,14 +140,14 @@ func getArchive(body []byte, date string, keywordFile string, outfile string) {
 		color.Red("Couldn't find an archive with that date!")
 		return
 	}
-	dump_files := archiveMetadata(fullname)
+	dumpFiles := archiveMetadata(fullname)
 	if ifArchiveExists(fullname) {
 		color.Cyan(fullname + " Archive already exists!")
 	} else {
-		for _, item := range dump_files.File {
-			dump_filepath, _ := filepath.Glob(filepath.Join("archives", fullname, item.DumpType, "*.txt"))
-			if len(dump_filepath) > 0{
-					_ = os.Remove(dump_filepath[0])
+		for _, item := range dumpFiles.File {
+			dumpFilepath, _ := filepath.Glob(filepath.Join("archives", fullname, item.DumpType, "*.txt"))
+			if len(dumpFilepath) > 0 {
+				_ = os.Remove(dumpFilepath[0])
 			}
 
 			if fileExists(filepath.Join("archives", fullname, item.Name)) == false {
@@ -166,7 +166,7 @@ func getArchive(body []byte, date string, keywordFile string, outfile string) {
 		}
 
 		color.Cyan("Decompressing XZ Archives..")
-		for _, item := range dump_files.File {
+		for _, item := range dumpFiles.File {
 			tarfile, _ := filepath.Glob(filepath.Join("archives", fullname, item.DumpType, "*.txt.xz"))
 			_, err := exec.Command("xz", "--decompress", tarfile[0]).Output()
 			if err != nil {
@@ -176,7 +176,7 @@ func getArchive(body []byte, date string, keywordFile string, outfile string) {
 		}
 
 		color.Cyan("Removing Zip Files..")
-		for _, item := range dump_files.File {
+		for _, item := range dumpFiles.File {
 			_ = os.Remove(filepath.Join("archives", fullname, item.Name))
 		}
 	}
@@ -189,7 +189,7 @@ func getArchive(body []byte, date string, keywordFile string, outfile string) {
 		if keywordSlice[i] == "" {
 			continue
 		}
-		for _, item := range dump_files.File {
+		for _, item := range dumpFiles.File {
 			dump_path, _ := filepath.Glob(filepath.Join("archives", fullname, item.DumpType, "*.txt"))
 			searchFile(dump_path[0], keywordSlice[i], outfile)
 		}
@@ -264,33 +264,33 @@ func searchFile(fileLocation string, keyword string, outfile string) {
 func ifArchiveExists(fullname string) bool {
 	dumpFiles := archiveMetadata(fullname)
 	for _, item := range dumpFiles.File {
-			archiveFilepaths, err := filepath.Glob(filepath.Join("archives", fullname, item.DumpType, "*.txt"))
-			if len(archiveFilepaths) == 0 || err != nil {
-				return false
-			}
+		archiveFilepaths, err := filepath.Glob(filepath.Join("archives", fullname, item.DumpType, "*.txt"))
+		if len(archiveFilepaths) == 0 || err != nil {
+			return false
+		}
 	}
 	return true
 }
 
 func archiveMetadata(fullname string) Files {
-	metadata_filename := "urlteam_" + strings.Split(fullname, "_")[1] + "_files.xml"
-	if fileExists("archives/"+ fullname + "/" + metadata_filename) == false {
-		color.Red(metadata_filename + " doesn't exists locally.")
-		metadata_url := "https://archive.org/download/" + fullname + "/" + metadata_filename
-		downloadFile(metadata_url)
+	metadataFilename := "urlteam_" + strings.Split(fullname, "_")[1] + "_files.xml"
+	if fileExists("archives/"+fullname+"/"+metadataFilename) == false {
+		color.Red(metadataFilename + " doesn't exists locally.")
+		metadataUrl := "https://archive.org/download/" + fullname + "/" + metadataFilename
+		downloadFile(metadataUrl)
 	}
-	byteValue, _ := ioutil.ReadFile("archives/"+ fullname + "/" + metadata_filename)
+	byteValue, _ := ioutil.ReadFile("archives/" + fullname + "/" + metadataFilename)
 	files := Files{}
 	xml.Unmarshal(byteValue, &files)
 	// Not all files are dumps, this struct will only contain zip dumps
-	dump_files := Files{}
+	dumpFiles := Files{}
 	for _, item := range files.File {
 		if item.Format == "ZIP" {
-				item.DumpType = strings.Split(item.Name, ".")[0]
-				dump_files.File = append(dump_files.File, item)
+			item.DumpType = strings.Split(item.Name, ".")[0]
+			dumpFiles.File = append(dumpFiles.File, item)
 		}
 	}
-	return dump_files
+	return dumpFiles
 }
 
 func fileExists(filename string) bool {
