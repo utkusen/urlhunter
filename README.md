@@ -101,7 +101,7 @@ urlhunter might be useful for cyber intelligence and bug bounty purposes. For ex
 
 ## Thanks
 
-Special thanks to Samet([@cyanpiny](https://twitter.com/cyanpiny)) who gave me the idea of this tool. 
+Special thanks to Samet Bekmezci([@sametbekmezci](https://twitter.com/sametbekmezci)) who gave me the idea of this tool. 
 
 ## Donation
 
