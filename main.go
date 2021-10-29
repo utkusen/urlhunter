@@ -136,7 +136,7 @@ func getArchive(body []byte, date string, keywordFile string, outfile string) {
 		}
 	}
 
-	if flag == false {
+	if !flag {
 		color.Red("Couldn't find an archive with that date!")
 		return
 	}
@@ -150,7 +150,7 @@ func getArchive(body []byte, date string, keywordFile string, outfile string) {
 				_ = os.Remove(dumpFilepath[0])
 			}
 
-			if fileExists(filepath.Join("archives", fullname, item.Name)) == false {
+			if !fileExists(filepath.Join("archives", fullname, item.Name)) {
 				color.Red(item.Name + " doesn't exist locally.")
 				url1 := "https://archive.org/download/" + fullname + "/" + item.Name
 				downloadFile(url1)
@@ -198,7 +198,8 @@ func getArchive(body []byte, date string, keywordFile string, outfile string) {
 }
 
 func searchFile(fileLocation string, keyword string, outfile string) {
-	path := strings.Split(fileLocation, "/")[1] + "/" + strings.Split(fileLocation, "/")[2]
+	path_parts := strings.Split(fileLocation, string(os.PathSeparator))
+	path := filepath.Join(path_parts[1], path_parts[2])
 	fmt.Println("Searching: " + keyword + " in: " + path)
 	f, err := os.Open(fileLocation)
 	scanner := bufio.NewScanner(f)
@@ -238,7 +239,7 @@ func searchFile(fileLocation string, keyword string, outfile string) {
 						foundFlag = false
 					}
 				}
-				if foundFlag == true {
+				if foundFlag {
 					textToWrite := strings.Split(scanner.Text(), "|")[1]
 					if _, err := f.WriteString(textToWrite + "\n"); err != nil {
 						panic(err)
@@ -274,12 +275,12 @@ func ifArchiveExists(fullname string) bool {
 
 func archiveMetadata(fullname string) Files {
 	metadataFilename := "urlteam_" + strings.Split(fullname, "_")[1] + "_files.xml"
-	if fileExists("archives/"+fullname+"/"+metadataFilename) == false {
+	if !fileExists(filepath.Join("archives", fullname, metadataFilename)) {
 		color.Red(metadataFilename + " doesn't exists locally.")
 		metadataUrl := "https://archive.org/download/" + fullname + "/" + metadataFilename
 		downloadFile(metadataUrl)
 	}
-	byteValue, _ := ioutil.ReadFile("archives/" + fullname + "/" + metadataFilename)
+	byteValue, _ := ioutil.ReadFile(filepath.Join("archives", fullname, metadataFilename))
 	files := Files{}
 	xml.Unmarshal(byteValue, &files)
 	// Not all files are dumps, this struct will only contain zip dumps
@@ -305,7 +306,7 @@ func downloadFile(url string) {
 	dirname := strings.Split(url, "/")[4]
 	filename := strings.Split(url, "/")[5]
 	fmt.Println("Downloading: " + url)
-	_ = os.MkdirAll("archives/"+dirname, os.ModePerm)
+	_ = os.MkdirAll(filepath.Join("archives", dirname), os.ModePerm)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		panic(err)
@@ -315,7 +316,7 @@ func downloadFile(url string) {
 		panic(err)
 	}
 	defer resp.Body.Close()
-	f, err := os.OpenFile("archives/"+dirname+"/"+filename, os.O_CREATE|os.O_WRONLY, 0644)
+	f, err := os.OpenFile(filepath.Join("archives", dirname, filename), os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		panic(err)
 	}
