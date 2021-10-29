@@ -136,7 +136,7 @@ func getArchive(body []byte, date string, keywordFile string, outfile string) {
 		}
 	}
 
-	if flag == false {
+	if !flag {
 		color.Red("Couldn't find an archive with that date!")
 		return
 	}
@@ -150,7 +150,7 @@ func getArchive(body []byte, date string, keywordFile string, outfile string) {
 				_ = os.Remove(dumpFilepath[0])
 			}
 
-			if fileExists(filepath.Join("archives", fullname, item.Name)) == false {
+			if !fileExists(filepath.Join("archives", fullname, item.Name)) {
 				color.Red(item.Name + " doesn't exist locally.")
 				url1 := "https://archive.org/download/" + fullname + "/" + item.Name
 				downloadFile(url1)
@@ -239,7 +239,7 @@ func searchFile(fileLocation string, keyword string, outfile string) {
 						foundFlag = false
 					}
 				}
-				if foundFlag == true {
+				if foundFlag {
 					textToWrite := strings.Split(scanner.Text(), "|")[1]
 					if _, err := f.WriteString(textToWrite + "\n"); err != nil {
 						panic(err)
