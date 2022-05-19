@@ -39,7 +39,7 @@ urlhunter requires 3 parameters to run: `-keywords`, `-date` and `-o`.
 
 For example: `urlhunter -keywords keywords.txt -date 2020-11-20 -o out.txt`
 
-### -keywords
+### --keywords
 
 You need to specify the txt file that contains keywords to search on URLs. Keywords must be written line by line. You have three different ways to specify keywords:
 
@@ -55,7 +55,7 @@ You need to specify the txt file that contains keywords to search on URLs. Keywo
 
 `regex 1\d{10}` will match `https://example.com/index.php?id=12938454312` but **_won't_** match `https://example.com/index.php?id=abc223`
 
-### -date
+### --date
 
 urlhunter downloads the archive files of the given date(s). You have three different ways to specify the date:
 
@@ -69,7 +69,7 @@ For example: `-date 2020-11-20`
 
 For example: `-date 2020-11-10:2020-11-20`
 
-### -o
+### --output
 
 You can specify the output file with `-o` parameter. For example `-o out.txt`
 
