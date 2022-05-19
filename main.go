@@ -42,11 +42,37 @@ type Files struct {
 	} `xml:"file"`
 }
 
+const usage = `Usage: ./urlhunter --keywords /path/to/keywordsFile --date DATE-RANGE-HERE --output /path/to/outputFile
+Example: ./urlhunter --keywords keywords.txt --date 2020-11-20 --output out.txt
+  -k, --keywords /path/to/keywordsFile
+      Path to a file that contains strings to search.
+
+  -d, --date DATE-RANGE-HERE
+      You may specify either a single date, or a range; Using a single date will set the present as the end of the range. 
+      Single date: "2020-11-20". Range: "2020-11-10:2020-11-20".
+
+  -o, --output /path/to/outputFile
+      Path to a file where the output will be written.
+`
+
 func main() {
-	keywordFile := flag.String("keywords", "", "A txt file that contains strings to search.")
-	dateParam := flag.String("date", "", "A single date or a range to search. Single: YYYY-MM-DD Range:YYYY-MM-DD:YYYY-MM-DD")
-	outFile := flag.String("o", "", "Output file")
+	
+	var keywordFile string
+	var dateParam string
+	var outFile string
+
+	flag.StringVar(&keywordFile, "k", "", "A txt file that contains strings to search.")
+	flag.StringVar(&keywordFile, "keywords", "", "A txt file that contains strings to search.")
+	flag.StringVar(&dateParam, "d", "", "A single date or a range to search. Single: YYYY-MM-DD Range:YYYY-MM-DD:YYYY-MM-DD")
+	flag.StringVar(&dateParam, "date", "", "A single date or a range to search. Single: YYYY-MM-DD Range:YYYY-MM-DD:YYYY-MM-DD")
+	flag.StringVar(&outFile, "o", "", "Output file")
+	flag.StringVar(&outFile, "output", "", "Output file")
+	
+	//https://www.antoniojgutierrez.com/posts/2021-05-14-short-and-long-options-in-go-flags-pkg/
+	flag.Usage = func() { fmt.Print(usage) }
 	flag.Parse()
+
+
 	if *keywordFile == "" || *dateParam == "" || *outFile == "" {
 		color.Red("Please specify all arguments!")
 		flag.PrintDefaults()
