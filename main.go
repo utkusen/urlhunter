@@ -234,7 +234,7 @@ func searchFile(fileLocation string, keyword string, outfile string) {
 	for scanner.Scan() {
 		if matcher(scanner.Bytes()) {
 
-			line, err := beaconspec.ParseLine(scanner.Text(), &metadata)
+			line, err := beaconspec.ParseLine(scanner.Text(), metadata)
 			if err != nil {
 				panic(err)
 			}

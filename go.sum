@@ -14,8 +14,8 @@ github.com/mitchellh/colorstring v0.0.0-20190213212951-d06e56a500db h1:62I3jR2Em
 github.com/mitchellh/colorstring v0.0.0-20190213212951-d06e56a500db/go.mod h1:l0dey0ia/Uv7NcFFVbCLtqEBQbrT4OCwCSKTEv6enCw=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
-github.com/rzhade3/beaconspec v0.0.0-20220908152424-9ee117a49aef h1:pUdPMuB/3D1DhN+z+aKJH2HFe65tO14vYUkshaSL29g=
-github.com/rzhade3/beaconspec v0.0.0-20220908152424-9ee117a49aef/go.mod h1:iTcJ+0KrnJXKBZvYH/Q6GKLhFuiXzD3z2PRae7xWqpY=
+github.com/rzhade3/beaconspec v0.0.0-20220908173914-b45182d7ddf3 h1:2YkbhM98YoshI0K0BD95IoCFx+KNN1L/G0P5WzY2kac=
+github.com/rzhade3/beaconspec v0.0.0-20220908173914-b45182d7ddf3/go.mod h1:iTcJ+0KrnJXKBZvYH/Q6GKLhFuiXzD3z2PRae7xWqpY=
 github.com/schollz/progressbar/v3 v3.7.1 h1:aQR/t6d+1nURSdoMn6c7n0vJi5xQ3KndpF0n7R5wrik=
 github.com/schollz/progressbar/v3 v3.7.1/go.mod h1:CG/f0JmacksUc6TkZToO7tVq4t03zIQSQUtTd7F9GR4=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
