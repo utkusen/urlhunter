@@ -212,54 +212,60 @@ func searchFile(fileLocation string, keyword string, outfile string) {
 		panic(err)
 	}
 	defer f.Close()
-	if strings.HasPrefix(keyword, "regex") {
-		regexValue := strings.Split(keyword, " ")[1]
-		r, err := regexp.Compile(regexValue)
-		if err != nil {
-			color.Red("Invalid Regex!")
-			return
-		}
-		for scanner.Scan() {
-			if r.MatchString(scanner.Text()) {
-				textToWrite := strings.Split(scanner.Text(), "|")[1]
-				if _, err := f.WriteString(textToWrite + "\n"); err != nil {
-					panic(err)
-				}
-			}
-		}
-	} else {
-		if strings.Contains(keyword, ",") {
-			keywords := strings.Split(keyword, ",")
-			for scanner.Scan() {
-				foundFlag := true
-				for i := 0; i < len(keywords); i++ {
-					if bytes.Contains(scanner.Bytes(), []byte(keywords[i])) {
-						continue
-					} else {
-						foundFlag = false
-					}
-				}
-				if foundFlag {
-					textToWrite := strings.Split(scanner.Text(), "|")[1]
-					if _, err := f.WriteString(textToWrite + "\n"); err != nil {
-						panic(err)
-					}
-				}
-			}
 
-		} else {
-			toFind := []byte(keyword)
-			for scanner.Scan() {
-				if bytes.Contains(scanner.Bytes(), toFind) {
-					textToWrite := strings.Split(scanner.Text(), "|")[1]
-					if _, err := f.WriteString(textToWrite + "\n"); err != nil {
-						panic(err)
-					}
-				}
+	var matcher func([]byte) bool
+	if strings.HasPrefix(keyword, "regex") {
+		matcher, err = regexMatch(keyword)
+	} else if strings.Contains(keyword, ",") {
+		matcher, err = multiKeywordMatcher(keyword)
+	} else {
+		matcher, err = stringMatch(keyword)
+	}
+	if err != nil {
+		color.Red(err.Error())
+		return
+	}
+
+	for scanner.Scan() {
+		if matcher(scanner.Bytes()) {
+			textToWrite := strings.Split(scanner.Text(), "|")[1]
+			if _, err := f.WriteString(textToWrite + "\n"); err != nil {
+				panic(err)
 			}
 		}
 	}
+}
 
+func regexMatch(keyword string) (func([]byte) bool, error) {
+	regexValue := strings.Split(keyword, " ")[1]
+	r, err := regexp.Compile(regexValue)
+	return func(b []byte) bool {
+		s := string(b)
+		return r.MatchString(s)
+	}, err
+}
+
+func multiKeywordMatcher(keyword string) (func([]byte) bool, error) {
+	keywords := strings.Split(keyword, ",")
+	bytes_keywords := make([][]byte, len(keywords))
+	for i, k := range keywords {
+		bytes_keywords[i] = []byte(k)
+	}
+	return func(text []byte) bool {
+		for _, k := range bytes_keywords {
+			if !bytes.Contains(text, k) {
+				return false
+			}
+		}
+		return true
+	}, nil
+}
+
+func stringMatch(keyword string) (func([]byte) bool, error) {
+	bytes_keyword := []byte(keyword)
+	return func(b []byte) bool {
+		return bytes.Contains(b, bytes_keyword)
+	}, nil
 }
 
 func ifArchiveExists(fullname string) bool {
