@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/fatih/color"
+	"github.com/rzhade3/beaconspec"
 	"github.com/schollz/progressbar/v3"
 )
 
@@ -212,6 +213,10 @@ func searchFile(fileLocation string, keyword string, outfile string) {
 		panic(err)
 	}
 	defer f.Close()
+	metadata, err := beaconspec.ReadMetadata(fileLocation)
+	if err != nil {
+		panic(err)
+	}
 
 	var matcher func([]byte) bool
 	if strings.HasPrefix(keyword, "regex") {
@@ -228,8 +233,13 @@ func searchFile(fileLocation string, keyword string, outfile string) {
 
 	for scanner.Scan() {
 		if matcher(scanner.Bytes()) {
-			textToWrite := strings.Split(scanner.Text(), "|")[1]
-			if _, err := f.WriteString(textToWrite + "\n"); err != nil {
+
+			line, err := beaconspec.ParseLine(scanner.Text(), &metadata)
+			if err != nil {
+				panic(err)
+			}
+			textToWrite := fmt.Sprintf("%s,%s\n", line.Source, line.Target)
+			if _, err := f.WriteString(textToWrite); err != nil {
 				panic(err)
 			}
 		}
