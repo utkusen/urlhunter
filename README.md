@@ -37,7 +37,7 @@ You can download the pre-built binaries from the [releases](https://github.com/u
 
 urlhunter requires 3 parameters to run: `-keywords`, `-date` and `-o`. 
 
-For example: `urlhunter -keywords keywords.txt -date 2020-11-20 -o out.txt`
+For example: `urlhunter --keywords keywords.txt --date 2020-11-20 --o out.txt`
 
 ### --keywords
 

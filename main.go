@@ -63,7 +63,6 @@ var err error
 var archivesPath string
 
 func main() {
-
 	var keywordFile string
 	var dateParam string
 	var outFile string
@@ -227,7 +226,6 @@ func getArchive(body []byte, date string, keywordFile string, outfile string) {
 }
 
 func searchFile(fileLocation string, keyword string, outfile string) {
-
 	var path string
 
 	if strings.HasPrefix(fileLocation, "archives") {
@@ -382,20 +380,6 @@ func downloadFile(url string) {
 	)
 	io.Copy(io.MultiWriter(f, bar), resp.Body)
 	color.Green("Download Finished!")
-}
-
-func ByteCountSI(b int64) string {
-	const unit = 1000
-	if b < unit {
-		return fmt.Sprintf("%d B", b)
-	}
-	div, exp := int64(unit), 0
-	for n := b / unit; n >= unit; n /= unit {
-		div *= unit
-		exp++
-	}
-	return fmt.Sprintf("%.1f %cB",
-		float64(b)/float64(div), "kMGTPE"[exp])
 }
 
 func Unzip(src string, dest string) ([]string, error) {
