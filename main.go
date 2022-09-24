@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/fatih/color"
+	"github.com/rzhade3/beaconspec"
 	"github.com/schollz/progressbar/v3"
 )
 
@@ -62,7 +63,6 @@ var err error
 var archivesPath string
 
 func main() {
-	
 	var keywordFile string
 	var dateParam string
 	var outFile string
@@ -79,7 +79,6 @@ func main() {
 	//https://www.antoniojgutierrez.com/posts/2021-05-14-short-and-long-options-in-go-flags-pkg/
 	flag.Usage = func() { fmt.Print(usage) }
 	flag.Parse()
-
 
 	if keywordFile == "" || dateParam == "" || outFile == "" {
 		crash("You must specify all arguments.", err)
@@ -191,7 +190,7 @@ func getArchive(body []byte, date string, keywordFile string, outfile string) {
 			_, err := Unzip(filepath.Join(archivesPath, fullname, item.Name), filepath.Join(archivesPath, fullname))
 			if err != nil {
 				os.Remove(filepath.Join(archivesPath, fullname, item.Name))
-				crash(item.Name + " looks damaged. It's removed now. Run the program again to re-download.", err)
+				crash(item.Name+" looks damaged. It's removed now. Run the program again to re-download.", err)
 			}
 		}
 
@@ -227,10 +226,9 @@ func getArchive(body []byte, date string, keywordFile string, outfile string) {
 }
 
 func searchFile(fileLocation string, keyword string, outfile string) {
-	
 	var path string
 
-	if strings.HasPrefix(fileLocation, "archives"){
+	if strings.HasPrefix(fileLocation, "archives") {
 		path_parts := strings.Split(fileLocation, string(os.PathSeparator))
 		path = filepath.Join(path_parts[1], path_parts[2])
 	} else {
@@ -250,54 +248,71 @@ func searchFile(fileLocation string, keyword string, outfile string) {
 		panic(err)
 	}
 	defer f.Close()
-	if strings.HasPrefix(keyword, "regex") {
-		regexValue := strings.Split(keyword, " ")[1]
-		r, err := regexp.Compile(regexValue)
-		if err != nil {
-			warning("Invalid Regex!")
-			return
-		}
-		for scanner.Scan() {
-			if r.MatchString(scanner.Text()) {
-				textToWrite := strings.Split(scanner.Text(), "|")[1]
-				if _, err := f.WriteString(textToWrite + "\n"); err != nil {
-					panic(err)
-				}
-			}
-		}
-	} else {
-		if strings.Contains(keyword, ",") {
-			keywords := strings.Split(keyword, ",")
-			for scanner.Scan() {
-				foundFlag := true
-				for i := 0; i < len(keywords); i++ {
-					if bytes.Contains(scanner.Bytes(), []byte(keywords[i])) {
-						continue
-					} else {
-						foundFlag = false
-					}
-				}
-				if foundFlag {
-					textToWrite := strings.Split(scanner.Text(), "|")[1]
-					if _, err := f.WriteString(textToWrite + "\n"); err != nil {
-						panic(err)
-					}
-				}
-			}
 
-		} else {
-			toFind := []byte(keyword)
-			for scanner.Scan() {
-				if bytes.Contains(scanner.Bytes(), toFind) {
-					textToWrite := strings.Split(scanner.Text(), "|")[1]
-					if _, err := f.WriteString(textToWrite + "\n"); err != nil {
-						panic(err)
-					}
-				}
+	metadata, err := beaconspec.ReadMetadata(fileLocation)
+	if err != nil {
+		warning(err.Error())
+		return
+	}
+
+	var matcher func([]byte) bool
+	if strings.HasPrefix(keyword, "regex") {
+		matcher, err = regexMatch(keyword)
+	} else if strings.Contains(keyword, ",") {
+		matcher, err = multiKeywordMatcher(keyword)
+	} else {
+		matcher, err = stringMatch(keyword)
+	}
+	if err != nil {
+		warning(err.Error())
+		return
+	}
+
+	for scanner.Scan() {
+		if matcher(scanner.Bytes()) {
+
+			line, err := beaconspec.ParseLine(scanner.Text(), metadata)
+			if err != nil {
+				panic(err)
+			}
+			textToWrite := fmt.Sprintf("%s,%s\n", line.Source, line.Target)
+			if _, err := f.WriteString(textToWrite); err != nil {
+				panic(err)
 			}
 		}
 	}
+}
 
+func regexMatch(keyword string) (func([]byte) bool, error) {
+	regexValue := strings.Split(keyword, " ")[1]
+	r, err := regexp.Compile(regexValue)
+	return func(b []byte) bool {
+		s := string(b)
+		return r.MatchString(s)
+	}, err
+}
+
+func multiKeywordMatcher(keyword string) (func([]byte) bool, error) {
+	keywords := strings.Split(keyword, ",")
+	bytes_keywords := make([][]byte, len(keywords))
+	for i, k := range keywords {
+		bytes_keywords[i] = []byte(k)
+	}
+	return func(text []byte) bool {
+		for _, k := range bytes_keywords {
+			if !bytes.Contains(text, k) {
+				return false
+			}
+		}
+		return true
+	}, nil
+}
+
+func stringMatch(keyword string) (func([]byte) bool, error) {
+	bytes_keyword := []byte(keyword)
+	return func(b []byte) bool {
+		return bytes.Contains(b, bytes_keyword)
+	}, nil
 }
 
 func ifArchiveExists(fullname string) bool {
@@ -365,20 +380,6 @@ func downloadFile(url string) {
 	)
 	io.Copy(io.MultiWriter(f, bar), resp.Body)
 	color.Green("Download Finished!")
-}
-
-func ByteCountSI(b int64) string {
-	const unit = 1000
-	if b < unit {
-		return fmt.Sprintf("%d B", b)
-	}
-	div, exp := int64(unit), 0
-	for n := b / unit; n >= unit; n /= unit {
-		div *= unit
-		exp++
-	}
-	return fmt.Sprintf("%.1f %cB",
-		float64(b)/float64(div), "kMGTPE"[exp])
 }
 
 func Unzip(src string, dest string) ([]string, error) {
