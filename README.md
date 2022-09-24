@@ -29,7 +29,7 @@ You can download the pre-built binaries from the [releases](https://github.com/u
 
 1) Install Go on your system
 
-2) Run: `go get -u github.com/utkusen/urlhunter`
+2) Run: `go install github.com/utkusen/urlhunter@latest`
 
 **Note For The Windows Users:** urlhunter uses `XZ Utils` which is pre-installed on Linux and macOS systems. For Windows systems, you need to download it from [https://tukaani.org/xz/](https://tukaani.org/xz/)
 
