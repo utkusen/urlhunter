@@ -103,6 +103,8 @@ urlhunter might be useful for cyber intelligence and bug bounty purposes. For ex
 
 Special thanks to Samet Bekmezci([@sametbekmezci](https://twitter.com/sametbekmezci)) who gave me the idea of this tool. 
 
-## Donation
+# Donation
 
-Bitcoin Address: 1MVGYtuYAbZ1MubRFb7dxhQH35w7RQBcVe
+Loved the project? You can buy me a coffee
+
+<a href="https://www.buymeacoffee.com/utkusen" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/default-orange.png" alt="Buy Me A Coffee" height="41" width="174"></a>
