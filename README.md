@@ -6,7 +6,7 @@
 				/   \_/U'        hunter  /|\
 				||  |_/
 				\\  |    utkusen.com
-				{K ||	twitter.com/utkusen
+				{K ||	twitter.com/utkusen_en
 ```
 
 urlhunter is a recon tool that allows searching on URLs that are exposed via shortener services such as bit.ly and goo.gl. The project is written in Go.
@@ -35,9 +35,9 @@ You can download the pre-built binaries from the [releases](https://github.com/u
 
 # Usage
 
-urlhunter requires 3 parameters to run: `-keywords`, `-date` and `-o`. 
+urlhunter requires 3 parameters to run: `-keywords`, `-date`. 
 
-For example: `urlhunter --keywords keywords.txt --date 2020-11-20 --o out.txt`
+For example: `urlhunter --keywords keywords.txt --date 2020-11-20`
 
 ### --keywords
 
@@ -65,6 +65,10 @@ urlhunter downloads the archive files of the given date(s). You have three diffe
 
 For example: `-date 2020-11-20`
 
+**Year:** urlhunter will download the archive of the given year. Year format is YYYY.
+
+For example: `-date 2024`
+
 **Date Range:** urlhunter will download all the archives between given start and end dates. 
 
 For example: `-date 2020-11-10:2020-11-20`
@@ -72,6 +76,10 @@ For example: `-date 2020-11-10:2020-11-20`
 ### --output
 
 You can specify the output file with `-o` parameter. For example `-o out.txt`
+
+### --rm
+
+You can specify the `-rm` parameter to remove the downloaded archive folders after processing. This is useful to save disk space. 
 
 ### Demonstration Video
 
@@ -102,9 +110,3 @@ urlhunter might be useful for cyber intelligence and bug bounty purposes. For ex
 ## Thanks
 
 Special thanks to Samet Bekmezci([@sametbekmezci](https://twitter.com/sametbekmezci)) who gave me the idea of this tool. 
-
-# Donation
-
-Loved the project? You can buy me a coffee
-
-<a href="https://www.buymeacoffee.com/utkusen" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/default-orange.png" alt="Buy Me A Coffee" height="41" width="174"></a>

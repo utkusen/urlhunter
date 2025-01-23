@@ -11,15 +11,16 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/fatih/color"
-	"github.com/rzhade3/beaconspec"
 	"github.com/schollz/progressbar/v3"
 )
 
@@ -43,46 +44,269 @@ type Files struct {
 	} `xml:"file"`
 }
 
-const usage = `Usage: ./urlhunter --keywords /path/to/keywordsFile --date DATE-RANGE-HERE --output /path/to/outputFile [--archives /path/to/archives]
-Example: ./urlhunter --keywords keywords.txt --date 2020-11-20 --output out.txt
+const usage = `Usage: ./urlhunter --keywords /path/to/keywordsFile --date DATE-RANGE-HERE [--output /path/to/outputFile] [--archives /path/to/archives] [--rm]
+Example: ./urlhunter --keywords keywords.txt --date 2020-11-20
   -k, --keywords /path/to/keywordsFile
       Path to a file that contains strings to search.
 
   -d, --date DATE-RANGE-HERE
-      You may specify either a single date, or a range; Using a single date will set the present as the end of the range. 
-      Single date: "2020-11-20". Range: "2020-11-10:2020-11-20".
+      You may specify either a single date, a range, or a year:
+      Single date: "2020-11-20"
+      Date range: "2020-11-10:2020-11-20"
+      Full year: "2024" (will search the entire year)
 
   -o, --output /path/to/outputFile
-      Path to a file where the output will be written.
+      (Optional) Path to a file where the output will be written. If not specified, results will be printed to screen.
 
   -a, --archives /path/to/archives
-      Path to the directory where you're storing your archive files. If this is your first time running this tool, the archives will be downloaded on a new ./archives folder
+      (Optional) Path to the directory where you're storing your archive files. If this is your first time running this tool, the archives will be downloaded on a new ./archives folder
+
+  --rm
+      (Optional) Remove downloaded archive folders after processing to save disk space.
 `
 
 var err error
 var archivesPath string
 
+// BeaconMetadata stores metadata from the header of a Beacon file
+type BeaconMetadata struct {
+	prefix     string
+	target     string
+	relation   string
+	message    string
+	annotation string
+}
+
+// BeaconLine represents a single line in a Beacon file
+type BeaconLine struct {
+	Source string
+	Target string
+}
+
+// ReadMetadata reads and parses the metadata section of a beacon file
+func ReadMetadata(filename string) (BeaconMetadata, error) {
+	f, err := os.Open(filename)
+	m := BeaconMetadata{}
+	if err != nil {
+		return m, err
+	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if !strings.HasPrefix(line, "#") {
+			break
+		}
+
+		parts := strings.SplitN(line, ":", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		value := strings.TrimSpace(parts[1])
+
+		switch parts[0] {
+		case "#PREFIX":
+			m.prefix = value
+		case "#TARGET":
+			m.target = value
+		case "#RELATION":
+			m.relation = value
+		case "#MESSAGE":
+			m.message = value
+		case "#ANNOTATION":
+			m.annotation = value
+		}
+	}
+	return m, nil
+}
+
+// ParseLine parses a single line from a beacon file
+func ParseLine(line string, data BeaconMetadata) (BeaconLine, error) {
+	b := BeaconLine{}
+
+	// First, try to find the first occurrence of | that's not part of a URL
+	var parts []string
+	lastIndex := 0
+	inURL := false
+
+	for i := 0; i < len(line); i++ {
+		if i+7 <= len(line) && (strings.HasPrefix(line[i:], "http://") || strings.HasPrefix(line[i:], "https://")) {
+			inURL = true
+			continue
+		}
+
+		if line[i] == ' ' && inURL {
+			// Space usually indicates end of URL
+			inURL = false
+		}
+
+		if line[i] == '|' && !inURL {
+			parts = append(parts, strings.TrimSpace(line[lastIndex:i]))
+			lastIndex = i + 1
+		}
+	}
+	parts = append(parts, strings.TrimSpace(line[lastIndex:]))
+
+	if len(parts) > 3 {
+		// If we still have more than 3 parts after our smarter parsing,
+		// it's truly an invalid line
+		return b, fmt.Errorf("invalid line: too many parts")
+	}
+
+	// Handle the source URL
+	source := parts[0]
+	if data.prefix != "" {
+		if isURL(data.prefix) {
+			source = joinURLs(data.prefix, source)
+		} else {
+			source = joinURLs(source, data.prefix)
+		}
+	}
+	b.Source = source
+
+	// Handle the target URL
+	var target string
+	if len(parts) == 1 {
+		target = parts[0]
+	} else if len(parts) == 2 && isURL(parts[1]) {
+		target = parts[1]
+	} else if len(parts) == 3 {
+		target = parts[2]
+	} else {
+		target = parts[0]
+	}
+
+	if data.target != "" {
+		if isURL(data.target) {
+			target = joinURLs(data.target, target)
+		} else {
+			target = joinURLs(target, data.target)
+		}
+	}
+	b.Target = target
+
+	return b, nil
+}
+
+// isURL checks if a string is a valid URL
+func isURL(s string) bool {
+	_, err := url.ParseRequestURI(s)
+	return err == nil
+}
+
+// joinURLs joins two URL parts together
+func joinURLs(base, path string) string {
+	if !strings.HasSuffix(base, "/") {
+		base += "/"
+	}
+	return base + strings.TrimPrefix(path, "/")
+}
+
+type ArchiveJob struct {
+	date        string
+	keywords    string
+	outfile     string
+	removeAfter bool
+}
+
+type ProcessSummary struct {
+	Date   string
+	Status string
+	Error  error
+}
+
+func processArchives(jobs []ArchiveJob) {
+	maxWorkers := 3
+	var wg sync.WaitGroup
+	jobChan := make(chan ArchiveJob, len(jobs))
+	summaryChan := make(chan ProcessSummary, len(jobs))
+
+	// Start workers
+	for i := 0; i < maxWorkers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for job := range jobChan {
+				archiveList := getArchiveList()
+				err := getArchive(archiveList, job.date, job.keywords, job.outfile, job.removeAfter)
+				if err != nil {
+					summaryChan <- ProcessSummary{
+						Date:   job.date,
+						Status: "Failed",
+						Error:  err,
+					}
+				} else {
+					summaryChan <- ProcessSummary{
+						Date:   job.date,
+						Status: "Success",
+					}
+				}
+			}
+		}()
+	}
+
+	// Send jobs to workers
+	for _, job := range jobs {
+		jobChan <- job
+	}
+	close(jobChan)
+
+	// Wait for all workers to finish
+	go func() {
+		wg.Wait()
+		close(summaryChan)
+	}()
+
+	// Collect and display summary
+	var failed []ProcessSummary
+	var succeeded []string
+
+	for summary := range summaryChan {
+		if summary.Error != nil {
+			failed = append(failed, summary)
+			color.Red("[FAILED] Date %s: %v", summary.Date, summary.Error)
+		} else {
+			succeeded = append(succeeded, summary.Date)
+			color.Green("[SUCCESS] Date %s processed successfully", summary.Date)
+		}
+	}
+
+	// Print final summary
+	fmt.Println("\n=== Final Summary ===")
+	color.Green("Successfully processed dates: %d", len(succeeded))
+	if len(failed) > 0 {
+		color.Red("Failed dates: %d", len(failed))
+		color.Yellow("\nFailed dates details:")
+		for _, f := range failed {
+			color.Yellow("- %s: %v", f.Date, f.Error)
+		}
+	}
+}
+
 func main() {
 	var keywordFile string
 	var dateParam string
 	var outFile string
+	var removeAfter bool
 
 	flag.StringVar(&keywordFile, "k", "", "A txt file that contains strings to search.")
 	flag.StringVar(&keywordFile, "keywords", "", "A txt file that contains strings to search.")
-	flag.StringVar(&dateParam, "d", "", "A single date or a range to search. Single: YYYY-MM-DD Range:YYYY-MM-DD:YYYY-MM-DD")
-	flag.StringVar(&dateParam, "date", "", "A single date or a range to search. Single: YYYY-MM-DD Range:YYYY-MM-DD:YYYY-MM-DD")
+	flag.StringVar(&dateParam, "d", "", "A single date, range, or year. Single: YYYY-MM-DD Range: YYYY-MM-DD:YYYY-MM-DD Year: YYYY")
+	flag.StringVar(&dateParam, "date", "", "A single date, range, or year. Single: YYYY-MM-DD Range: YYYY-MM-DD:YYYY-MM-DD Year: YYYY")
 	flag.StringVar(&outFile, "o", "", "Output file")
 	flag.StringVar(&outFile, "output", "", "Output file")
 	flag.StringVar(&archivesPath, "a", "archives", "Archives file path")
 	flag.StringVar(&archivesPath, "archives", "archives", "Archives file path")
+	flag.BoolVar(&removeAfter, "rm", false, "Remove downloaded archive folders after processing")
 
-	//https://www.antoniojgutierrez.com/posts/2021-05-14-short-and-long-options-in-go-flags-pkg/
 	flag.Usage = func() { fmt.Print(usage) }
 	flag.Parse()
 
-	if keywordFile == "" || dateParam == "" || outFile == "" {
-		crash("You must specify all arguments.", err)
-		return
+	if keywordFile == "" || dateParam == "" {
+		fmt.Println("Error: Missing required arguments")
+		flag.Usage()
+		os.Exit(1)
 	}
 
 	fmt.Println(`
@@ -93,10 +317,20 @@ func main() {
 	/   \_/U'        hunter  /|\
 	||  |_/
 	\\  |    utkusen.com
-	{K ||	twitter.com/utkusen
+	{K ||	twitter.com/utkusen_en
 
  `)
 	_ = os.Mkdir(archivesPath, os.ModePerm)
+
+	// Handle year-only format
+	if len(dateParam) == 4 {
+		if _, err := time.Parse("2006", dateParam); err == nil {
+			startDate := fmt.Sprintf("%s-01-01", dateParam)
+			endDate := fmt.Sprintf("%s-12-31", dateParam)
+			dateParam = fmt.Sprintf("%s:%s", startDate, endDate)
+		}
+	}
+
 	if strings.Contains(dateParam, ":") {
 		startDate, err := time.Parse("2006-01-02", strings.Split(dateParam, ":")[0])
 		if err != nil {
@@ -106,13 +340,24 @@ func main() {
 		if err != nil {
 			crash("Wrong date format!", err)
 		}
+
+		// Collect all dates into jobs
+		var jobs []ArchiveJob
 		for rd := rangeDate(startDate, endDate); ; {
 			date := rd()
 			if date.IsZero() {
 				break
 			}
-			getArchive(getArchiveList(), string(date.Format("2006-01-02")), keywordFile, outFile)
+			jobs = append(jobs, ArchiveJob{
+				date:        date.Format("2006-01-02"),
+				keywords:    keywordFile,
+				outfile:     outFile,
+				removeAfter: removeAfter,
+			})
 		}
+
+		// Process all jobs in parallel
+		processArchives(jobs)
 	} else {
 		if dateParam != "latest" {
 			_, err := time.Parse("2006-01-02", dateParam)
@@ -121,7 +366,12 @@ func main() {
 			}
 		}
 
-		getArchive(getArchiveList(), dateParam, keywordFile, outFile)
+		// Single date, just process it directly
+		archiveList := getArchiveList()
+		err := getArchive(archiveList, dateParam, keywordFile, outFile, removeAfter)
+		if err != nil {
+			crash("Error processing archive", err)
+		}
 	}
 	color.Green("Search complete!")
 }
@@ -139,7 +389,134 @@ func getArchiveList() []byte {
 	return body
 }
 
-func getArchive(body []byte, date string, keywordFile string, outfile string) {
+type DownloadJob struct {
+	url      string
+	dirname  string
+	filename string
+	item     Files
+}
+
+type ProcessResult struct {
+	Error     error
+	Dirname   string
+	DumpPaths []string
+}
+
+func downloadAndProcess(dumpFiles Files, fullname string) ([]ProcessResult, error) {
+	var downloads []DownloadJob
+	results := make(chan ProcessResult, len(dumpFiles.File))
+
+	// Collect all files that need to be downloaded
+	for _, item := range dumpFiles.File {
+		if !fileExists(filepath.Join(archivesPath, fullname, item.Name)) {
+			info(item.Name + " doesn't exist locally. Will be downloaded.")
+			url := "https://archive.org/download/" + fullname + "/" + item.Name
+			downloads = append(downloads, DownloadJob{
+				url:      url,
+				dirname:  fullname,
+				filename: item.Name,
+				item:     dumpFiles,
+			})
+		} else {
+			// If file exists, process it immediately
+			go func(item struct{ Name, DumpType string }) {
+				result := processArchive(fullname, item)
+				results <- result
+			}(struct{ Name, DumpType string }{Name: item.Name, DumpType: item.DumpType})
+		}
+	}
+
+	if len(downloads) > 0 {
+		var wg sync.WaitGroup
+
+		// Start parallel downloads and process each file as it completes
+		for _, job := range downloads {
+			wg.Add(1)
+			go func(job DownloadJob) {
+				defer wg.Done()
+
+				// Download the file
+				if err := downloadFile(job.url); err != nil {
+					results <- ProcessResult{
+						Error: fmt.Errorf("failed to download %s: %v", job.filename, err),
+					}
+					return
+				}
+
+				// Process it immediately after download
+				result := processArchive(job.dirname, struct{ Name, DumpType string }{
+					Name:     job.filename,
+					DumpType: strings.Split(job.filename, ".")[0],
+				})
+				results <- result
+			}(job)
+		}
+
+		// Wait for all downloads and processing to complete
+		go func() {
+			wg.Wait()
+			close(results)
+		}()
+	} else {
+		close(results)
+	}
+
+	// Collect all results
+	var processResults []ProcessResult
+	for result := range results {
+		if result.Error != nil {
+			return nil, result.Error
+		}
+		processResults = append(processResults, result)
+	}
+
+	return processResults, nil
+}
+
+func processArchive(fullname string, item struct{ Name, DumpType string }) ProcessResult {
+	result := ProcessResult{
+		Dirname: fullname,
+	}
+
+	// Remove any existing txt files
+	dumpFilepath, _ := filepath.Glob(filepath.Join(archivesPath, fullname, item.DumpType, "*.txt"))
+	if len(dumpFilepath) > 0 {
+		_ = os.Remove(dumpFilepath[0])
+	}
+
+	// Unzip the file
+	info("Unzipping: " + item.Name)
+	_, err := Unzip(filepath.Join(archivesPath, fullname, item.Name), filepath.Join(archivesPath, fullname))
+	if err != nil {
+		os.Remove(filepath.Join(archivesPath, fullname, item.Name))
+		result.Error = fmt.Errorf("failed to unzip %s: %v", item.Name, err)
+		return result
+	}
+
+	// Decompress XZ archive
+	info("Decompressing: " + item.Name)
+	tarfile, _ := filepath.Glob(filepath.Join(archivesPath, fullname, item.DumpType, "*.txt.xz"))
+	if len(tarfile) > 0 {
+		_, err := exec.Command("xz", "--decompress", tarfile[0]).Output()
+		if err != nil {
+			result.Error = fmt.Errorf("failed to decompress %s: %v", item.Name, err)
+			return result
+		}
+	}
+
+	// Get the path of the decompressed file
+	dumpPath, _ := filepath.Glob(filepath.Join(archivesPath, fullname, item.DumpType, "*.txt"))
+	if len(dumpPath) > 0 {
+		result.DumpPaths = dumpPath
+	}
+
+	// Remove the zip file
+	_ = os.Remove(filepath.Join(archivesPath, fullname, item.Name))
+
+	return result
+}
+
+func getArchive(body []byte, date string, keywordFile string, outfile string, removeAfter bool) error {
 	color.Cyan("Search starting for: " + date)
 	type Response struct {
 		Items []struct {
@@ -150,7 +527,10 @@ func getArchive(body []byte, date string, keywordFile string, outfile string) {
 		Total int `json:"total"`
 	}
 	var response Response
-	json.Unmarshal(body, &response)
+	if err := json.Unmarshal(body, &response); err != nil {
+		return fmt.Errorf("failed to parse response: %v", err)
+	}
+
 	flag := false
 	var fullname string
 	if date == "latest" {
@@ -167,65 +547,53 @@ func getArchive(body []byte, date string, keywordFile string, outfile string) {
 	}
 
 	if !flag {
-		info("Couldn't find an archive with that date.")
-		return
+		return fmt.Errorf("no archive found for date %s", date)
 	}
+
 	dumpFiles := archiveMetadata(fullname)
 	if ifArchiveExists(fullname) {
 		info(fullname + " already exists locally. Skipping download..")
 	} else {
-		for _, item := range dumpFiles.File {
-			dumpFilepath, _ := filepath.Glob(filepath.Join(archivesPath, fullname, item.DumpType, "*.txt"))
-			if len(dumpFilepath) > 0 {
-				_ = os.Remove(dumpFilepath[0])
-			}
-
-			if !fileExists(filepath.Join(archivesPath, fullname, item.Name)) {
-				info(item.Name + " doesn't exist locally. The file will be downloaded.")
-				url1 := "https://archive.org/download/" + fullname + "/" + item.Name
-				downloadFile(url1)
-			}
-
-			info("Unzipping: " + item.Name)
-			_, err := Unzip(filepath.Join(archivesPath, fullname, item.Name), filepath.Join(archivesPath, fullname))
-			if err != nil {
-				os.Remove(filepath.Join(archivesPath, fullname, item.Name))
-				crash(item.Name+" looks damaged. It's removed now. Run the program again to re-download.", err)
-			}
+		// Download and process files in parallel
+		results, err := downloadAndProcess(dumpFiles, fullname)
+		if err != nil {
+			return fmt.Errorf("processing failed: %v", err)
 		}
 
-		info("Decompressing XZ Archives..")
-		for _, item := range dumpFiles.File {
-			tarfile, _ := filepath.Glob(filepath.Join(archivesPath, fullname, item.DumpType, "*.txt.xz"))
-			_, err := exec.Command("xz", "--decompress", tarfile[0]).Output()
-			if err != nil {
-				crash("Error decompressing the downloaded archives", err)
-			}
+		// Process keywords for each successfully processed file
+		fileBytes, err := ioutil.ReadFile(keywordFile)
+		if err != nil {
+			return fmt.Errorf("failed to read keyword file: %v", err)
 		}
 
-		info("Removing Zip Files..")
-		for _, item := range dumpFiles.File {
-			_ = os.Remove(filepath.Join(archivesPath, fullname, item.Name))
-		}
-	}
-	fileBytes, err := ioutil.ReadFile(keywordFile)
-	if err != nil {
-		panic(err)
-	}
-	keywordSlice := strings.Split(string(fileBytes), "\n")
-	for i := 0; i < len(keywordSlice); i++ {
-		if keywordSlice[i] == "" {
-			continue
-		}
-		for _, item := range dumpFiles.File {
-			dump_path, _ := filepath.Glob(filepath.Join(archivesPath, fullname, item.DumpType, "*.txt"))
-			searchFile(dump_path[0], keywordSlice[i], outfile)
+		keywordSlice := strings.Split(string(fileBytes), "\n")
+		for i := 0; i < len(keywordSlice); i++ {
+			if keywordSlice[i] == "" {
+				continue
+			}
+			for _, result := range results {
+				for _, dumpPath := range result.DumpPaths {
+					if err := searchFile(dumpPath, keywordSlice[i], outfile); err != nil {
+						return fmt.Errorf("search failed in %s: %v", dumpPath, err)
+					}
+				}
+			}
 		}
 	}
 
+	// Remove archive folder if --rm is specified
+	if removeAfter {
+		archiveDir := filepath.Join(archivesPath, fullname)
+		info("Removing archive folder: " + archiveDir)
+		if err := os.RemoveAll(archiveDir); err != nil {
+			warning("Failed to remove archive folder: " + err.Error())
+		}
+	}
+
+	return nil
 }
 
-func searchFile(fileLocation string, keyword string, outfile string) {
+func searchFile(fileLocation string, keyword string, outfile string) error {
 	var path string
 
 	if strings.HasPrefix(fileLocation, "archives") {
@@ -238,21 +606,25 @@ func searchFile(fileLocation string, keyword string, outfile string) {
 	info("Searching: \"" + keyword + "\" in " + path)
 
 	f, err := os.Open(fileLocation)
-	scanner := bufio.NewScanner(f)
 	if err != nil {
-		panic(err)
-	}
-	defer f.Close()
-	f, err = os.OpenFile(outfile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		panic(err)
+		return err
 	}
 	defer f.Close()
 
-	metadata, err := beaconspec.ReadMetadata(fileLocation)
+	scanner := bufio.NewScanner(f)
+	var outputFile *os.File
+	if outfile != "" {
+		outputFile, err = os.OpenFile(outfile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		if err != nil {
+			return err
+		}
+		defer outputFile.Close()
+	}
+
+	metadata, err := ReadMetadata(fileLocation)
 	if err != nil {
 		warning(err.Error())
-		return
+		return err
 	}
 
 	var matcher func([]byte) bool
@@ -265,22 +637,28 @@ func searchFile(fileLocation string, keyword string, outfile string) {
 	}
 	if err != nil {
 		warning(err.Error())
-		return
+		return err
 	}
 
 	for scanner.Scan() {
 		if matcher(scanner.Bytes()) {
-
-			line, err := beaconspec.ParseLine(scanner.Text(), metadata)
+			line, err := ParseLine(scanner.Text(), metadata)
 			if err != nil {
-				panic(err)
+				warning(err.Error())
+				continue
 			}
 			textToWrite := fmt.Sprintf("%s,%s\n", line.Source, line.Target)
-			if _, err := f.WriteString(textToWrite); err != nil {
-				panic(err)
+
+			if outfile != "" {
+				if _, err := outputFile.WriteString(textToWrite); err != nil {
+					return err
+				}
+			} else {
+				fmt.Print(textToWrite)
 			}
 		}
 	}
+	return scanner.Err()
 }
 
 func regexMatch(keyword string) (func([]byte) bool, error) {
@@ -355,31 +733,35 @@ func fileExists(filename string) bool {
 	return !info.IsDir()
 }
 
-func downloadFile(url string) {
+func downloadFile(url string) error {
 	dirname := strings.Split(url, "/")[4]
 	filename := strings.Split(url, "/")[5]
 	info("Downloading: " + url)
 	_ = os.MkdirAll(filepath.Join(archivesPath, dirname), os.ModePerm)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		panic(err)
+		return err
 	}
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		panic(err)
+		return err
 	}
 	defer resp.Body.Close()
 	f, err := os.OpenFile(filepath.Join(archivesPath, dirname, filename), os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
-		panic(err)
+		return err
 	}
 	defer f.Close()
 	bar := progressbar.DefaultBytes(
 		resp.ContentLength,
 		"",
 	)
-	io.Copy(io.MultiWriter(f, bar), resp.Body)
+	_, err = io.Copy(io.MultiWriter(f, bar), resp.Body)
+	if err != nil {
+		return err
+	}
 	color.Green("Download Finished!")
+	return nil
 }
 
 func Unzip(src string, dest string) ([]string, error) {
