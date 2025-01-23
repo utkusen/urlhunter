@@ -6,7 +6,7 @@
 				/   \_/U'        hunter  /|\
 				||  |_/
 				\\  |    utkusen.com
-				{K ||	twitter.com/utkusen_en
+				|K ||	twitter.com/utkusen_en
 ```
 
 urlhunter is a recon tool that allows searching on URLs that are exposed via shortener services such as bit.ly and goo.gl. The project is written in Go.
